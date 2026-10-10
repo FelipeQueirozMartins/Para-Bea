@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pra Bea 💛</title>
+<style>
+:root{--bg:#fff7f2;--card:#fff;--tx:#3b2a2a;--mut:#8a7070;--ac:#e8627c;--ac2:#f6c1cc}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1517;--card:#2a1e21;--tx:#f5e6e8;--mut:#b99ca1;--ac:#ff7f96;--ac2:#5a2f39}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:480px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 16px 40px}
+h1{font-size:1.5rem;text-align:center;margin:8px 0 4px}
+.sub{text-align:center;color:var(--mut);margin:0 0 18px}
+.card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.timer{display:flex;gap:8px;justify-content:center;text-align:center}
+.timer div{background:var(--ac2);border-radius:12px;padding:10px 0;min-width:64px}
+.timer b{display:block;font-size:1.5rem;color:var(--ac)}
+.timer span{font-size:.7rem;color:var(--mut)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.blk{border:none;background:var(--ac2);color:var(--tx);border-radius:16px;padding:18px 8px;font-size:1rem;line-height:1.3;text-align:center;font-family:inherit}
+button.blk{cursor:pointer;transition:transform .1s}
+button.blk:active{transform:scale(.94)}
+.blk em{display:block;font-size:1.6rem;font-style:normal;margin-bottom:4px}
+.blk .n{display:block;font-size:1.4rem;font-weight:700;color:var(--ac);margin-top:6px}
+textarea{width:100%;min-height:110px;border-radius:12px;border:1px solid var(--ac2);background:var(--bg);color:var(--tx);padding:12px;font:inherit;resize:vertical}
+.btn{margin-top:10px;width:100%;border:none;background:var(--ac);color:#fff;border-radius:12px;padding:12px;font-size:1rem;cursor:pointer}
+.btn:disabled{opacity:.5}
+.m{border-left:3px solid var(--ac);padding:4px 0 4px 12px;margin:0 0 14px}
+.m .d{font-size:.75rem;color:var(--mut);margin-bottom:2px}
+.m .x{white-space:pre-wrap;line-height:1.55}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ac);color:#fff;padding:10px 18px;border-radius:99px;opacity:0;transition:opacity .25s;pointer-events:none;font-size:.9rem}
+.toast.on{opacity:1}
+h2{font-size:1.05rem;margin:0 0 10px}
+.hint{color:var(--mut);font-size:.8rem;margin:8px 0 0}
+.login{display:block;margin:24px auto 0;background:none;border:none;color:var(--mut);font-size:.75rem;opacity:.5;cursor:pointer}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div class="toast" id="toast"></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,addDoc,query,orderBy,onSnapshot,doc,setDoc,getDoc,increment,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getAuth,signInWithPopup,GoogleAuthProvider,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+/* ====== PREENCHA AQUI ====== */
+const firebaseConfig = {
+  apiKey: "AIzaSyC0Q78tBsUcr97bINedBx7hNHmao5pQfgg",
+  authDomain: "para-bea.firebaseapp.com",
+  projectId: "para-bea",
+  appId: "1:749035028122:web:61aac1f9038341352c2923"
+};
+const OWNER_EMAIL = "fefeipo47@gmail.com";
+/* =========================== */
+
+const UNLOCK = new Date("2026-10-18T10:00:00-03:00").getTime();
+const BLOCKS = [
+  {k:"saudade",e:"🥺",t:"Senti saudade"},
+  {k:"amor",e:"❤️",t:"Senti que te amo"},
+  {k:"pensei",e:"💭",t:"Pensei em você"},
+  {k:"falta",e:"🫂",t:"Senti sua falta"}
+];
+const app0 = initializeApp(firebaseConfig);
+const db = getFirestore(app0), auth = getAuth(app0);
+const app = document.getElementById("app"), toastEl = document.getElementById("toast");
+let owner = false, msgs = [], counts = null, timerId = null, pending = {}, flushT = null, tt;
+
+const el = (tag, cls, txt) => {const n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined) n.textContent = txt; return n};
+const toast = t => {toastEl.textContent = t; toastEl.classList.add("on"); clearTimeout(tt); tt = setTimeout(() => toastEl.classList.remove("on"), 1400)};
+const unlocked = () => Date.now() >= UNLOCK;
+
+async function flush(){
+  const p = pending; pending = {};
+  if (!Object.keys(p).length) return;
+  const data = {};
+  for (const k in p) data[k] = increment(p[k]);
+  try { await setDoc(doc(db, "counts", "total"), data, {merge: true}); }
+  catch (e) { for (const k in p) pending[k] = (pending[k] || 0) + p[k]; toast("Não consegui salvar 😕"); }
+}
+
+async function loadCounts(){
+  try { const s = await getDoc(doc(db, "counts", "total")); counts = s.exists() ? s.data() : {}; }
+  catch (e) { counts = null; }
+}
+
+function render(){
+  clearInterval(timerId);
+  app.innerHTML = "";
+  const open = unlocked();
+  app.append(el("h1", "", "Pra Bea 💛"), el("p", "sub", open ? "Bem-vinda de volta, Bea 💛" : "Tudo que eu sinto, guardado pra você"));
+
+  if (!open) {
+    const tc = el("div", "card"), tm = el("div", "timer");
+    [["d","dias"],["h","horas"],["m","min"],["s","seg"]].forEach(([id, l]) => {
+      const box = el("div"), b = el("b", "", "0"); b.id = "t" + id;
+      box.append(b, el("span", "", l)); tm.append(box);
+    });
+    tc.append(tm); app.append(tc);
+    const tick = () => {
+      const left = UNLOCK - Date.now();
+      if (left <= 0) { clearInterval(timerId); loadCounts().then(render); return; }
+      const s = Math.floor(left / 1000);
+      document.getElementById("td").textContent = Math.floor(s / 86400);
+      document.getElementById("th").textContent = Math.floor(s % 86400 / 3600);
+      document.getElementById("tm").textContent = Math.floor(s % 3600 / 60);
+      document.getElementById("ts").textContent = s % 60;
+    };
+    tick(); timerId = setInterval(tick, 1000);
+  } else if (counts) {
+    const rc = el("div", "card"); rc.append(el("h2", "", "Quantas vezes eu pensei em você 💛"));
+    const g = el("div", "grid");
+    BLOCKS.forEach(b => {
+      const d = el("div", "blk"); d.append(el("em", "", b.e), document.createTextNode(b.t), el("span", "n", (counts[b.k] || 0) + "x"));
+      g.append(d);
+    });
+    rc.append(g); app.append(rc);
+  }
+
+  if (owner) {
+    const bc = el("div", "card"); bc.append(el("h2", "", "O que eu tô sentindo agora"));
+    const gr = el("div", "grid");
+    BLOCKS.forEach(b => {
+      const btn = el("button", "blk"); btn.append(el("em", "", b.e), document.createTextNode(b.t));
+      btn.onclick = () => {
+        pending[b.k] = (pending[b.k] || 0) + 1;
+        if (navigator.vibrate) try { navigator.vibrate(30) } catch (e) {}
+        toast("Guardado 💛");
+        clearTimeout(flushT); flushT = setTimeout(flush, 1500);
+      };
+      gr.append(btn);
+    });
+    bc.append(gr);
+    if (!open) bc.append(el("p", "hint", "Os números só aparecem pra ela no dia 18/10, às 10h."));
+    app.append(bc);
+
+    const wc = el("div", "card"); wc.append(el("h2", "", "Escrever uma mensagem pra ela"));
+    const ta = el("textarea"); ta.placeholder = "O que você tá pensando agora...";
+    const sb = el("button", "btn", "Enviar mensagem");
+    sb.onclick = async () => {
+      const v = ta.value.trim(); if (!v) return;
+      sb.disabled = true;
+      try { await addDoc(collection(db, "messages"), {x: v, t: serverTimestamp()}); ta.value = ""; toast("Mensagem enviada 💛"); }
+      catch (e) { toast("Não consegui enviar 😕"); }
+      sb.disabled = false;
+    };
+    wc.append(ta, sb); app.append(wc);
+  }
+
+  const mc = el("div", "card"); mc.append(el("h2", "", "Mensagens"));
+  if (!msgs.length) mc.append(el("p", "hint", "Ainda sem mensagens. Elas vão aparecendo aqui."));
+  msgs.forEach(m => {
+    const box = el("div", "m");
+    const d = m.t ? m.t.toDate().toLocaleString("pt-BR", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"}) : "agora";
+    box.append(el("div", "d", d), el("div", "x", m.x)); mc.append(box);
+  });
+  app.append(mc);
+
+  const lg = el("button", "login", owner ? "sair" : "·");
+  lg.onclick = () => owner ? signOut(auth) : signInWithPopup(auth, new GoogleAuthProvider()).catch(() => {});
+  app.append(lg);
+}
+
+onAuthStateChanged(auth, u => { owner = !!u && u.email === OWNER_EMAIL; render(); });
+onSnapshot(query(collection(db, "messages"), orderBy("t", "desc")), s => { msgs = s.docs.map(d => d.data()); render(); });
+if (unlocked()) loadCounts().then(render);
+render();
+window.addEventListener("pagehide", flush);
+</script>
+</body>
+</html>
