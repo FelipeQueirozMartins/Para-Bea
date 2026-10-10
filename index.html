@@ -107,33 +107,28 @@ function render(){
       document.getElementById("ts").textContent = s % 60;
     };
     tick(); timerId = setInterval(tick, 1000);
-  } else if (counts) {
-    const rc = el("div", "card"); rc.append(el("h2", "", "Quantas vezes eu pensei em você 💛"));
-    const g = el("div", "grid");
-    BLOCKS.forEach(b => {
-      const d = el("div", "blk"); d.append(el("em", "", b.e), document.createTextNode(b.t), el("span", "n", (counts[b.k] || 0) + "x"));
-      g.append(d);
-    });
-    rc.append(g); app.append(rc);
   }
 
-  if (owner) {
-    const bc = el("div", "card"); bc.append(el("h2", "", "O que eu tô sentindo agora"));
-    const gr = el("div", "grid");
-    BLOCKS.forEach(b => {
-      const btn = el("button", "blk"); btn.append(el("em", "", b.e), document.createTextNode(b.t));
-      btn.onclick = () => {
-        pending[b.k] = (pending[b.k] || 0) + 1;
-        if (navigator.vibrate) try { navigator.vibrate(30) } catch (e) {}
-        toast("Guardado 💛");
-        clearTimeout(flushT); flushT = setTimeout(flush, 1500);
-      };
-      gr.append(btn);
-    });
-    bc.append(gr);
-    if (!open) bc.append(el("p", "hint", "Os números só aparecem pra ela no dia 18/10, às 10h."));
-    app.append(bc);
+  const bc = el("div", "card");
+  bc.append(el("h2", "", open ? "Quantas vezes eu pensei em você 💛" : "O que eu tô sentindo por você 💛"));
+  const gr = el("div", "grid");
+  BLOCKS.forEach(b => {
+    const blk = el(owner ? "button" : "div", "blk");
+    const num = open && counts ? (counts[b.k] || 0) + "x" : "(x) 🔒";
+    blk.append(el("em", "", b.e), document.createTextNode(b.t), el("span", "n", num));
+    if (owner) blk.onclick = () => {
+      pending[b.k] = (pending[b.k] || 0) + 1;
+      if (navigator.vibrate) try { navigator.vibrate(30) } catch (e) {}
+      toast("Guardado 💛");
+      clearTimeout(flushT); flushT = setTimeout(flush, 1500);
+    };
+    gr.append(blk);
+  });
+  bc.append(gr);
+  if (!open) bc.append(el("p", "hint", owner ? "Cada clique seu fica guardado. Os números abrem no dia 18/10, às 10h." : "Cada bloco é uma coisa que eu senti. Os números abrem no dia 18/10, às 10h."));
+  app.append(bc);
 
+  if (owner) {
     const wc = el("div", "card"); wc.append(el("h2", "", "Escrever uma mensagem pra ela"));
     const ta = el("textarea"); ta.placeholder = "O que você tá pensando agora...";
     const sb = el("button", "btn", "Enviar mensagem");
