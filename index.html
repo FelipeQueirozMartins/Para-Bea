@@ -54,7 +54,7 @@ const firebaseConfig = {
 const OWNER_EMAIL = "fefeipo47@gmail.com";
 /* =========================== */
 
-const UNLOCK = new Date("2026-10-18T10:00:00-03:00").getTime();
+const UNLOCK = 0; // aberto desde já
 const BLOCKS = [
   {k:"saudade",e:"🥺",t:"Senti saudade"},
   {k:"amor",e:"❤️",t:"Senti que te amo"},
@@ -86,9 +86,10 @@ async function loadCounts(){
 
 function render(){
   clearInterval(timerId);
+  const keep = (app.querySelector("textarea") || {}).value || "";
   app.innerHTML = "";
   const open = unlocked();
-  app.append(el("h1", "", "Pra Bea 💛"), el("p", "sub", open ? "Bem-vinda de volta, Bea 💛" : "Tudo que eu sinto, guardado pra você"));
+  app.append(el("h1", "", "Pra Bea 💛"), el("p", "sub", "Tudo que eu sinto, guardado pra você"));
 
   if (!open) {
     const tc = el("div", "card"), tm = el("div", "timer");
@@ -130,7 +131,7 @@ function render(){
 
   if (owner) {
     const wc = el("div", "card"); wc.append(el("h2", "", "Escrever uma mensagem pra ela"));
-    const ta = el("textarea"); ta.placeholder = "O que você tá pensando agora...";
+    const ta = el("textarea"); ta.value = keep; ta.placeholder = "O que você tá pensando agora...";
     const sb = el("button", "btn", "Enviar mensagem");
     sb.onclick = async () => {
       const v = ta.value.trim(); if (!v) return;
@@ -158,7 +159,7 @@ function render(){
 
 onAuthStateChanged(auth, u => { owner = !!u && u.email === OWNER_EMAIL; render(); });
 onSnapshot(query(collection(db, "messages"), orderBy("t", "desc")), s => { msgs = s.docs.map(d => d.data()); render(); });
-if (unlocked()) loadCounts().then(render);
+onSnapshot(doc(db, "counts", "total"), sn => { counts = sn.exists() ? sn.data() : {}; render(); }, () => {});
 render();
 window.addEventListener("pagehide", flush);
 </script>
